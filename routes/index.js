@@ -16,6 +16,7 @@ module.exports = function(app, io) {
     console.log('a user connected');
     socket.on('add song', function(data) {
       console.log('Add song');
+      // TODO : Use Piped
       var urlInfo = 'https://www.youtube.com/oembed?url=' +
       data.url + '&format=json';
 
@@ -35,13 +36,16 @@ module.exports = function(app, io) {
 
     });
 
+    socket.on('update time', function(currentTime) {
+      io.emit('updated time', currentTime);
+    });
+
     socket.on('query', function(data) {
       socket.emit('start', list);
     })
 
-    socket.on('delete', function() {
-      console.log('Deleted song');
-      socket.broadcast.emit('delete');
+    socket.on('nextSong', function(data) {
+      socket.broadcast.emit('nextSong', data);
       if (list.playlist.length > 0) {
         list.playlist.shift();
       }

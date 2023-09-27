@@ -4,6 +4,7 @@ var parseAddress = require('../views/parseAddress.js');
 
 var socket = io();
 
+var serverTime = 0;
 
 function addToList(item) {
   list  = document.getElementById('playlist');
@@ -123,8 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
       addToList(data);
     });
 
-    socket.on('delete', function() {
-      console.log('delete on list');
+    socket.on('nextSong', function(data) {
       var t = document.querySelector('#playlist');
       if (t.children.length > 0)
         t.removeChild(t.children[0]);
@@ -152,9 +152,17 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    socket.on('delete', function() {
-      console.log('delete on player');
-      window.data.shift();
+    socket.on('updated time', function(currentTime) {
+      if (serverTime < currentTime) {
+        serverTime = currentTime;
+        updatedTime(currentTime);
+      }
+    });
+
+    socket.on('nextSong', function(data) {
+      if (document.getElementById('player-status').getAttribute('current-url') != data) {
+        fetchHls(window.data.shift());
+      }
     });
   }
 

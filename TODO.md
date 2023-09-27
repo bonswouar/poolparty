@@ -5,4 +5,4 @@
   npm WARN deprecated request@2.88.2: request has been deprecated, see https://github.com/request/request/issues/3142
   ```
 
-- Use buffer time
+- Use Piped everywhere & configurable instance url

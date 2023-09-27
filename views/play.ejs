@@ -1,7 +1,7 @@
 <%- include('header') -%>
 
 <body>
-  <div id="player-status" playing="false" current=""></div>
+  <div id="player-status" playing="false" current-url=""></div>
   <div id="container">
     <video id="video"
       width="640"
@@ -18,8 +18,26 @@
 
   function nextSong() {
     if (window.data.length > 0) {
-      window.socket.emit('delete');
-      fetchHls(window.data.shift());
+      var song = window.data.shift()
+      window.socket.emit('nextSong', song);
+      fetchHls(song);
+    }
+  }
+
+  function updateTime() {
+    if (document.getElementById('player-status').getAttribute('playing')) {
+      var video = document.getElementById('video')
+      window.socket.emit('update time', video.currentTime);
+    }
+  }
+
+  function updatedTime(newTime) {
+    var video = document.getElementById('video')
+    // Seek if desync is more than 5s
+    if ((newTime > video.currentTime + 5) && video.buffered) {
+      var video = document.getElementById('video');
+      // Seek 1s before for best results (?)
+      video.currentTime = newTime - 1;
     }
   }
 
@@ -42,8 +60,8 @@
   document.addEventListener('DOMContentLoaded', initShaka);
 
   function fetchHls(url) {
+    document.getElementById('player-status').setAttribute('current-url', url);
     var video = document.getElementById('video')
-    document.getElementById('player-status').setAttribute('current', url)
 
     fetch(`https://pipedapi.kavin.rocks/streams/${url}`)
     .then(res => res.json())
@@ -62,6 +80,7 @@
       video.addEventListener('playing',  () => {document.getElementById('player-status').setAttribute('playing', true)});
       video.addEventListener('pause', () => {document.getElementById('player-status').setAttribute('playing', false)});
       video.addEventListener('ended', () => {nextSong()});
+      video.addEventListener('timeupdate', updateTime);
 
       player.load(hlsUrl, 0, "application/dash+xml").then(() => {
         console.log('Video loaded successfully');
