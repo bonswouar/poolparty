@@ -1,73 +1,84 @@
 <%- include('header') -%>
 
-<script src="http://www.youtube.com/player_api"></script>
-<script>
-
-// create youtube player
-var player;
-window.data = [];
-
-function onYouTubePlayerAPIReady(video) {
-  player = new YT.Player('player', {
-    height: '390',
-    width: '640',
-    events: {
-      'onReady': onPlayerReady,
-      'onStateChange': onPlayerStateChange
-    }
-  });
-}
-
-// autoplay video
-function onPlayerReady(event) {
-  if (player.getVideoData().video_id !== '') {
-    event.target.playVideo();
-  }
-  window.socket.emit('query');
-}
-
-// when video ends
-function onPlayerStateChange(event) {
-  //console.log(event);
-  if (event.data === 0) {
-    window.socket.emit('delete');
-    if (window.data.length > 0) {
-      player.loadVideoById(window.data.shift());
-    }
-  }
-}
-
-function parseAddress(address) {
-  var arr = address.split('=');
-  if (arr.length > 1) {
-    return arr[1].split('&')[0];
-  } else {
-    return arr[0].split('&')[0];
-  }
-}
-
-function send() {
-  var id = document.getElementById("idVideo").value;
-
-  if (player.getCurrentTime() === player.getDuration()
-        && window.data.length === 0) {
-    player.loadVideoById(parseAddress(id));
-    console.log(window.socket);
-  } else {
-    window.data.push(parseAddress(id));
-  }
-}
-
-function nextSong() {
-  if(window.data.length > 0){
-    player.loadVideoById(window.data.shift());
-    window.socket.emit('delete');
-  }
-}
-
-</script>
 <body>
- <div id="player"></div> <br>
- <button id="next" onclick=nextSong();> Next </button>
+  <div id="player-status" playing="false" current=""></div>
+  <div id="container">
+    <video id="video"
+      width="640"
+      poster="//shaka-player-demo.appspot.com/assets/poster.jpg"
+      controls autoplay>
+    </video>
+  </div>
+  <button id="next" onclick=nextSong();> Next </button>
 </body>
+<script src="/js/dash-utils.js"></script>
+<script src="/js/shaka-player.compiled.js"></script>
+<script>
+  window.data = [];
+
+  function nextSong() {
+    if (window.data.length > 0) {
+      window.socket.emit('delete');
+      fetchHls(window.data.shift());
+    }
+  }
+
+  function initShaka() {
+    // Install built-in polyfills to patch browser incompatibilities.
+    shaka.polyfill.installAll();
+
+    // Check to see if the browser supports the basic APIs Shaka needs.
+    if (shaka.Player.isBrowserSupported()) {
+      // Everything looks good!
+      if (window.data.length > 0) {
+        fetchHls(window.data.shift());
+      }
+    } else {
+      // This browser does not have the minimum set of APIs we need.
+      console.error('Browser not supported!');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', initShaka);
+
+  function fetchHls(url) {
+    var video = document.getElementById('video')
+    document.getElementById('player-status').setAttribute('current', url)
+
+    fetch(`https://pipedapi.kavin.rocks/streams/${url}`)
+    .then(res => res.json())
+    .then(json => {
+      hlsUrl = json['hls']
+      var streams = [];
+      streams.push(...json['audioStreams']);
+      streams.push(...json['videoStreams']);
+
+      // generate dash file from streams
+      const dash = generate_dash_file_from_formats(streams, json['duration']);
+      hlsUrl = "data:application/dash+xml;charset=utf-8;base64," + btoa(dash);
+
+      const player = new shaka.Player(video);
+      player.addEventListener('error', onError);
+      video.addEventListener('playing',  () => {document.getElementById('player-status').setAttribute('playing', true)});
+      video.addEventListener('pause', () => {document.getElementById('player-status').setAttribute('playing', false)});
+      video.addEventListener('ended', () => {nextSong()});
+
+      player.load(hlsUrl, 0, "application/dash+xml").then(() => {
+        console.log('Video loaded successfully');
+      }).catch((error) => {
+        console.log('Error loading video:', error);
+        document.getElementById('player-status').setAttribute('playing', false);
+      });
+
+      function onError(event) {
+        document.getElementById('player-status').setAttribute('playing', false);
+        console.error('Error code', event.detail.code, 'object', event.detail);
+      }
+    })
+    .catch(err => {
+      console.log(err)
+      // throw err
+    })
+  }
+</script>
 <%- include('footer') -%>

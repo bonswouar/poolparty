@@ -1,0 +1,10 @@
+version: "2.1"
+services:
+  radarr:
+    image: poolparty
+    container_name: poolparty
+    environment:
+      - TZ=Europe/Paris
+    ports:
+      - 127.0.0.1:5468:8080
+    restart: unless-stopped

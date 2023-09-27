@@ -25,16 +25,71 @@ function addToList(item) {
 }
 
 function sendData() {
+  document.getElementById('searchResults').style.display = "none";
   var songText = document.getElementById('songText');
   if (parseAddress(songText.value) !== "invalid") {
-    var urlPre = 'http://img.youtube.com/vi/' + parseAddress(songText.value) + '/0.jpg';
-    console.log(urlPre);
+    var urlPre = 'https://pipedproxy.kavin.rocks/vi/' + parseAddress(songText.value) + '/maxresdefault.jpg?host=i.ytimg.com';
     var data = {url: songText.value, prev: urlPre};
     if (data.url !== '') {
       socket.emit('add song', data);
       songText.value = "";
     }
   }
+}
+
+function searchData() {
+  var searchText = document.getElementById('searchText');
+  const filters = [
+    "videos",
+    // "playlists",
+    "music_songs",
+    "music_videos",
+    // "music_playlists"
+  ];
+  filters.forEach(filter => {
+    fetch(`https://pipedapi.kavin.rocks/search/?q=${searchText.value}&filter=${filter}`)
+    .then(res => res.json())
+    .then(json => {
+      var searchResults = document.getElementById(`searchResults-${filter}`);
+      searchResults.innerHTML = "";
+      json.items.forEach(item => {
+        var link = document.createElement("a");
+        link.href = "https://piped.kavin.rocks"+item.url;
+        link.title = item.title;
+        link.onclick = function(e) {
+          e.preventDefault;
+
+          var data = {url: link.href, prev: item.thumbnail};
+          if (data.url !== '') {
+            socket.emit('add song', data);
+            songText.value = "";
+          }
+
+          return false;
+        };
+
+        var div = document.createElement("div");
+        div.style.width = "250px";
+        div.style.height = "175px";
+        div.style.color = "black";
+        div.style.float = "left";
+        title = document.createTextNode(item.title);
+
+        var img = document.createElement("img");
+        img.style.width = "240px";
+        img.style.height = "135px";
+        img.src = item.thumbnail;
+
+        div.appendChild(title);
+        div.appendChild(img);
+        link.appendChild(div);
+        searchResults.appendChild(link);
+        searchResults.parentElement.style.display = "block";
+      });
+      document.getElementById('searchResults').style.display = "block";
+    })
+    .catch(err => { throw err })
+  });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -54,6 +109,14 @@ document.addEventListener('DOMContentLoaded', function() {
     songText.addEventListener('keyup', function(evt) {
       if (evt.keyCode == 13)
         sendData();
+    });
+
+    var searchButton = document.getElementById('searchButton');
+    var searchText = document.getElementById('searchText');
+    searchButton.addEventListener('click', searchData);
+    searchText.addEventListener('keyup', function(evt) {
+      if (evt.keyCode == 13)
+        searchData();
     });
 
     socket.on('added', function(data) {
@@ -76,15 +139,16 @@ document.addEventListener('DOMContentLoaded', function() {
           window.data.push(parseAddress(f.url));
       }
       if (window.data.length > 0) {
-        player.loadVideoById(window.data.shift());
+        fetchHls(window.data.shift());
       }
     });
 
     socket.on('added', function(data) {
       if (parseAddress(data.url) !== "invalid") {
         window.data.push(parseAddress(data.url));
-        if (player.getPlayerState() < 1)
-        player.loadVideoById(window.data.shift());
+        if (!document.getElementById('player-status').getAttribute('playing')) {
+          fetchHls(window.data.shift());
+        }
       }
     });
 

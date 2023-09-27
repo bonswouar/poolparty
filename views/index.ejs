@@ -5,6 +5,7 @@
 
   <div id="playlistTemplate">
     <div id="playlist">
+      <h1>Current playlist</h1>
       {{#playlist}}
       <div id="item">
         <h3 id="title">{{info.title}}</h3>
@@ -15,8 +16,26 @@
     </div>
   </div>
   <div id="divInput">
-    <input type="text" placeholder="put your cool music here"
-           id="songText"></input>
+    <h1>Search</h1>
+    <input type="text" placeholder="Search for a youtube video here" id="searchText"></input>
+    <button id="searchButton"> Search </button>
+    <div id="searchResults" style="display:none">
+      <h1>Results</h1>
+      <div style="display:none">
+        <h2>Youtube videos</h2>
+        <div id="searchResults-videos" style="height:530px;width:1800px;"></div>
+      </div>
+      <div style="display:none">
+        <h2>Youtube Music songs</h2>
+        <div id="searchResults-music_songs" style="height:530px;width:1800px;"></div>
+      </div>
+      <div style="display:none">
+        <h2>Youtube Music videos</h2>
+        <div id="searchResults-music_videos" style="height:530px;width:1800px;"></div>
+      </div>
+    </div>
+    <h1>Add manually</h1>
+    <input type="text" placeholder="Paste a youtube link here" id="songText"></input>
     <button id="sendButton"> Send </button>
   </div>
 </body>
