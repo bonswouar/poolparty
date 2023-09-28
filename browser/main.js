@@ -1,10 +1,18 @@
 var io = require('socket.io-client');
 var Handlebars = require('handlebars');
-var parseAddress = require('../views/parseAddress.js');
+var parseAddress = require('../lib/parseAddress.js');
+var youtubeInfo = require('../lib/youtubeInfo.js');
 
 var socket = io();
 
-var serverTime = 0;
+// To have access in the templates (no better way?!)
+window.getParseAddress = function (address) {
+  return parseAddress(address);
+}
+window.getYoutubeInfo = async function (youtubeId, play) {
+  return await youtubeInfo(youtubeId, play);
+}
+
 
 function addToList(item) {
   list  = document.getElementById('playlist');
@@ -12,11 +20,11 @@ function addToList(item) {
   div.setAttribute('id', 'item');
 
   var title = document.createElement('h3');
-  title.innerHTML = item.info.title;
+  title.innerHTML = item.title;
   title.setAttribute('id', 'title');
 
   var entry = document.createElement('img');
-  var img = item.prev;
+  var img = item.thumbnail;
   entry.setAttribute('src', img);
   entry.setAttribute('id', 'img');
 
@@ -27,14 +35,17 @@ function addToList(item) {
 
 function sendData() {
   document.getElementById('searchResults').style.display = "none";
-  var songText = document.getElementById('songText');
-  if (parseAddress(songText.value) !== "invalid") {
-    var urlPre = 'https://pipedproxy.kavin.rocks/vi/' + parseAddress(songText.value) + '/maxresdefault.jpg?host=i.ytimg.com';
-    var data = {url: songText.value, prev: urlPre};
-    if (data.url !== '') {
-      socket.emit('add song', data);
-      songText.value = "";
-    }
+  var videoUrl = document.getElementById('videoUrl');
+  var youtubeId = parseAddress(videoUrl.value);
+  if (youtubeId) {
+    const requestYoutubeInfo = async () => {
+      var data = await youtubeInfo(youtubeId);
+      if (data) {
+        socket.emit('add video', data);
+        videoUrl.value = "";
+      }
+    };
+    requestYoutubeInfo();
   }
 }
 
@@ -58,12 +69,10 @@ function searchData() {
         link.href = "https://piped.kavin.rocks"+item.url;
         link.title = item.title;
         link.onclick = function(e) {
-          e.preventDefault;
-
-          var data = {url: link.href, prev: item.thumbnail};
+          var data = {url: link.href, thumbnail: item.thumbnail, title: item.title};
           if (data.url !== '') {
-            socket.emit('add song', data);
-            songText.value = "";
+            socket.emit('add video', data);
+            document.getElementById('videoUrl').value = "";
           }
 
           return false;
@@ -105,9 +114,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     var send = document.getElementById('sendButton');
-    var songText = document.getElementById('songText');
+    var videoUrl = document.getElementById('videoUrl');
     send.addEventListener('click', sendData);
-    songText.addEventListener('keyup', function(evt) {
+    videoUrl.addEventListener('keyup', function(evt) {
       if (evt.keyCode == 13)
         sendData();
     });
@@ -124,7 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
       addToList(data);
     });
 
-    socket.on('nextSong', function(data) {
+    socket.on('nextVideo', function(data) {
       var t = document.querySelector('#playlist');
       if (t.children.length > 0)
         t.removeChild(t.children[0]);
@@ -135,33 +144,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     socket.on('start', function(data) {
       for (var i = 0, f; f = data.playlist[i]; ++i) {
-        if (parseAddress(f.url) !== "invalid")
-          window.data.push(parseAddress(f.url));
+        if (parseAddress(f.url))
+          window.data.push(f.url);
       }
       if (window.data.length > 0) {
-        fetchHls(window.data.shift());
+        loadVideo(window.data.shift());
       }
     });
 
     socket.on('added', function(data) {
-      if (parseAddress(data.url) !== "invalid") {
-        window.data.push(parseAddress(data.url));
-        if (!document.getElementById('player-status').getAttribute('playing')) {
-          fetchHls(window.data.shift());
+      if (parseAddress(data.url)) {
+        window.data.push(data.url);
+        if (!window.playing) {
+          loadVideo(window.data.shift());
         }
       }
     });
 
-    socket.on('updated time', function(currentTime) {
-      if (serverTime < currentTime) {
-        serverTime = currentTime;
-        updatedTime(currentTime);
-      }
-    });
+    socket.on('updated time', updatedTime);
 
-    socket.on('nextSong', function(data) {
-      if (document.getElementById('player-status').getAttribute('current-url') != data) {
-        fetchHls(window.data.shift());
+    socket.on('nextVideo', function(data) {
+      if (window.currentVideoUrl != data) {
+        loadVideo(window.data.shift());
       }
     });
   }

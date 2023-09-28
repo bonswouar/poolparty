@@ -1,6 +1,6 @@
 version: "2.1"
 services:
-  radarr:
+  poolparty:
     image: poolparty
     container_name: poolparty
     environment:

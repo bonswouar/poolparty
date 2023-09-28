@@ -1,6 +1,7 @@
 
-var request = require("request");
 var list = { playlist: [] };
+var serverTime = 0;
+var currentVideoUrl = null;
 
 module.exports = function(app, io) {
   app.get('/', function(req, res) {
@@ -14,40 +15,33 @@ module.exports = function(app, io) {
   io.on('connection', function(socket) {
     socket.emit('start', list);
     console.log('a user connected');
-    socket.on('add song', function(data) {
-      console.log('Add song');
-      // TODO : Use Piped
-      var urlInfo = 'https://www.youtube.com/oembed?url=' +
-      data.url + '&format=json';
-
-      request(urlInfo, function(err, res, body) {
-        if (!err && res.statusCode == 200) {
-          var info = JSON.parse(body);
-          data['info'] = info;
-          io.emit('added', data);
-          list.playlist.push(data);
-        }
-        else {
-          data['info'] = {'title': ''};
-          io.emit('added', data);
-          list.playlist.push(data);
-        }
-      })
-
+    socket.on('add video', function(data) {
+      console.log('Add video');
+      io.emit('added', data);
+      list.playlist.push(data);
     });
 
-    socket.on('update time', function(currentTime) {
-      io.emit('updated time', currentTime);
+    socket.on('update time', function(data) {
+      if (!currentVideoUrl) {
+        currentVideoUrl = data['currentVideoUrl'];
+      }
+      var time = data['time'];
+      if (serverTime < time && currentVideoUrl == data['currentVideoUrl']) {
+        serverTime = time;
+        io.emit('updated time', data);
+      }
     });
 
     socket.on('query', function(data) {
       socket.emit('start', list);
     })
 
-    socket.on('nextSong', function(data) {
-      socket.broadcast.emit('nextSong', data);
-      if (list.playlist.length > 0) {
+    socket.on('nextVideo', function(data) {
+      if (list.playlist.length > 0 && list.playlist[1]['url'] == data) {
+        socket.broadcast.emit('nextVideo', data);
         list.playlist.shift();
+        serverTime = 0;
+        currentVideoUrl = data['currentVideoUrl'];
       }
     })
   });

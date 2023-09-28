@@ -1,7 +1,6 @@
 <%- include('header') -%>
 
 <body>
-  <div id="player-status" playing="false" current-url=""></div>
   <div id="container">
     <video id="video"
       width="640"
@@ -9,35 +8,41 @@
       controls autoplay>
     </video>
   </div>
-  <button id="next" onclick=nextSong();> Next </button>
+  <button id="next" onclick=nextVideo();> Next </button>
 </body>
 <script src="/js/dash-utils.js"></script>
 <script src="/js/shaka-player.compiled.js"></script>
 <script>
   window.data = [];
+  window.nextVideoLoading = false;
+  window.player = null;
+  window.currentVideoUrl = null;
+  window.playing = false;
 
-  function nextSong() {
-    if (window.data.length > 0) {
-      var song = window.data.shift()
-      window.socket.emit('nextSong', song);
-      fetchHls(song);
+  function nextVideo() {
+    if (window.data.length > 0 && !window.nextVideoLoading) {
+      window.nextVideoLoading = true;
+      var nextVideoUrl = window.data.shift();
+      window.socket.emit('nextVideo', nextVideoUrl);
+      loadVideo(nextVideoUrl);
     }
   }
 
   function updateTime() {
-    if (document.getElementById('player-status').getAttribute('playing')) {
-      var video = document.getElementById('video')
-      window.socket.emit('update time', video.currentTime);
+    if (window.playing) {
+      var video = document.getElementById('video');
+      window.socket.emit('update time', {time: video.currentTime, currentVideoUrl: window.currentVideoUrl});
     }
   }
 
-  function updatedTime(newTime) {
-    var video = document.getElementById('video')
-    // Seek if desync is more than 5s
-    if ((newTime > video.currentTime + 5) && video.buffered) {
+  function updatedTime(data) {
+    var video = document.getElementById('video');
+    var time = data['time'];
+    // Seek if desync is more than 10s
+    if (data['currentVideoUrl'] == window.currentVideoUrl && window.playing && time > 10 && time > video.currentTime + 5 && video.buffered) {
       var video = document.getElementById('video');
       // Seek 1s before for best results (?)
-      video.currentTime = newTime - 1;
+      video.currentTime = time - 1;
     }
   }
 
@@ -49,7 +54,7 @@
     if (shaka.Player.isBrowserSupported()) {
       // Everything looks good!
       if (window.data.length > 0) {
-        fetchHls(window.data.shift());
+        loadVideo(window.data.shift());
       }
     } else {
       // This browser does not have the minimum set of APIs we need.
@@ -59,45 +64,66 @@
 
   document.addEventListener('DOMContentLoaded', initShaka);
 
-  function fetchHls(url) {
-    document.getElementById('player-status').setAttribute('current-url', url);
+  function loadVideo(url) {
+    window.currentVideoUrl = url;
+    var youtubeId = window.getParseAddress(url);
+    if (!youtubeId) {
+      return;
+    }
     var video = document.getElementById('video')
 
-    fetch(`https://pipedapi.kavin.rocks/streams/${url}`)
-    .then(res => res.json())
-    .then(json => {
-      hlsUrl = json['hls']
-      var streams = [];
-      streams.push(...json['audioStreams']);
-      streams.push(...json['videoStreams']);
+    const requestYoutubeInfo = async () => {
+      var videoData = await window.getYoutubeInfo(youtubeId, true);
+      if (videoData) {
+        video.poster = videoData['thumbnail'];
 
-      // generate dash file from streams
-      const dash = generate_dash_file_from_formats(streams, json['duration']);
-      hlsUrl = "data:application/dash+xml;charset=utf-8;base64," + btoa(dash);
+        var streams = [];
+        streams.push(...videoData['audioStreams']);
+        streams.push(...videoData['videoStreams']);
 
-      const player = new shaka.Player(video);
-      player.addEventListener('error', onError);
-      video.addEventListener('playing',  () => {document.getElementById('player-status').setAttribute('playing', true)});
-      video.addEventListener('pause', () => {document.getElementById('player-status').setAttribute('playing', false)});
-      video.addEventListener('ended', () => {nextSong()});
-      video.addEventListener('timeupdate', updateTime);
+        // generate dash file from streams
+        const dash = generate_dash_file_from_formats(streams, videoData['duration']);
+        hlsUrl = "data:application/dash+xml;charset=utf-8;base64," + btoa(dash);
 
-      player.load(hlsUrl, 0, "application/dash+xml").then(() => {
-        console.log('Video loaded successfully');
-      }).catch((error) => {
-        console.log('Error loading video:', error);
-        document.getElementById('player-status').setAttribute('playing', false);
-      });
+        // Check if player instance exists
+        if (!window.player) {
+          const player = new shaka.Player(video);
+          window.player = player;
+          video.addEventListener('playing',  () => {
+            window.playing = true;
+          });
+          video.addEventListener('pause', () => {
+            window.playing = false;
+            // Hack to handle "end" signal not sent
+            if (video.currentTime && video.duration - video.currentTime < 1) {
+              nextVideo();
+            }
+          });
+          video.addEventListener('ended', nextVideo);
+          video.addEventListener('timeupdate', updateTime);
+        } else {
+          player = window.player;
+        }
 
-      function onError(event) {
-        document.getElementById('player-status').setAttribute('playing', false);
-        console.error('Error code', event.detail.code, 'object', event.detail);
+        player.addEventListener('error', onError);
+
+
+        player.load(hlsUrl, 0, "application/dash+xml").then(() => {
+          console.log('Video loaded successfully');
+          window.nextVideoLoading = false;
+        }).catch((error) => {
+          console.log('Error loading video:', error);
+          window.playing = false;
+        });
+
+        function onError(event) {
+          window.playing = false;
+          console.error('Error code', event.detail.code, 'object', event.detail);
+        }
+
       }
-    })
-    .catch(err => {
-      console.log(err)
-      // throw err
-    })
+    };
+    requestYoutubeInfo();
   }
 </script>
 <%- include('footer') -%>
