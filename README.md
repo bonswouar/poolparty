@@ -9,37 +9,42 @@ Make a youtube playlist, collaboratively.
 
 This is a forked version. There are quite a few fixes and new features, including:
 
-- Basic Youtube search support
+- Basic Youtube search support (including Youtube Music)
 - Sync the playback on all clients *(experimental)*
-- Use piped instead of native youtube for everything - no call is ever made directly on youtube's server
+- Use Piped instead of native Youtube for everything: no call is ever made on Youtube's server
 - Implement Shaka Player
-- DASH+xml conversion from streams (apparently youtube's HLS are kinda broken)
+- DASH+xml conversion from streams (apparently Youtube's HLS are kinda broken)
 - Update packages.json, remove reprecated
-- Dockerized
+- Dockerized for easier installation
 
-You can take a look at TODO.md for details about potential future features.
+You can take a look at [TODO](./TODO.md) for details about potential future features.
 
 ## Requirements
 
-- [node.js](https://nodejs.org/en/)
+- docker
 
 
 ## Installation
 
-    npm install
+    docker build -t poolparty .
 
 ## Run
 
-    npm start
+    docker-compose up -d
 
 
 When the server is running, everyone in the party can acces to
-server_ip:8080/  and add songs.
+`http://server_ip:5468` and add songs.
 
-One person will visit server_ip:8080/play in order to reproduce the
-playlist.
+One or more persons can then visit `http://server_ip:5468/play` in order to play the playlist in sync.
 
-## Authors
+
+## Warning
+
+This is a work in progress. Don't use it in production environment, or do it at your own risks.
+
+
+## Thanks to original Authors
 
 - [@carlos4rias](https://github.com/carlos4rias)
 - [@jhonber](https://github.com/jhonber)

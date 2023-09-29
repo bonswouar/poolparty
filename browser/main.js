@@ -143,11 +143,13 @@ document.addEventListener('DOMContentLoaded', function() {
     window.socket = socket;
 
     socket.on('start', function(data) {
+      // NOTE: doesn't seem to be triggered the first time the page is loaded on chrome (need refresh)
       for (var i = 0, f; f = data.playlist[i]; ++i) {
         if (parseAddress(f.url))
           window.data.push(f.url);
       }
       if (window.data.length > 0) {
+        initShaka();
         loadVideo(window.data.shift());
       }
     });
