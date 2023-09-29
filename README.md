@@ -1,7 +1,7 @@
 poolparty
 =========
 
-Make a youtube playlist, collaboratively.
+Make a youtube playlist, collaboratively, and play it in sync.
 
 ![dsu](https://github.com/pin3da/poolparty/blob/master/dsu.jpg)
 
